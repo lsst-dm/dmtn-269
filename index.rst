@@ -32,21 +32,21 @@ Here I try to outline issues that are already known and options for solving them
 Schema construction and versioning
 ==================================
 
-The actual schema created when APDB is initialized is a product of definition in `sdm_schemas`_ and what APDB software adds to those definitions.
+The actual schema created when APDB is initialized is a combination of the definition in `sdm_schemas`_ (in `yml/apdb.yaml`) and what the APDB software implementation adds to those definitions.
 Each of these two pieces can evolve separately and change over time, changing the resulting database schema.
-Presently there are two implementations of APDB, one is based on relation databases and ``sqlalchemy`` package, and another uses ``Cassandra`` as a storage backend.
-These two implementation may use different mapping of the definitions in ``sdm_schemas`` to actual database schema, and their code can evolve independently.
+Presently there are two implementations of APDB, one is based on relational databases and the ``sqlalchemy`` package, and another uses ``Cassandra`` as a storage backend.
+These two implementations may use different mappings of the definitions in ``sdm_schemas`` to actual database schema, and their code can evolve independently.
 The database schema thus depends on the version of the ``sdm_schemas`` definitions and the version of the code used to generate the schema.
-This two versions may also change independently, though there may be cases when new ``sdm_schemas`` definitions also require code updates (e.g. to handle new types or data transformations).
-While the code that creates database schema does it based on ``sdm_schemas`` description, reversing that process and reconstructing schema description from database is not always possible.
+The schema and code versions may also change independently, though there may be cases when new ``sdm_schemas`` definitions also require code updates (e.g. to handle new types or data transformations).
+While the code that creates database schema does it based on the ``sdm_schemas`` description, reversing that process and reconstructing the schema description from a database is not always possible.
 
 The code that works with the existing database needs to be compatible with the schema in the database.
-In practical terms it is impossible to examine the database schema and decide whether it is compatible with the schema description and APDB code.
-There needs to be a separate mechanism which can identify versions of the schema description and the code and compare those against the corresponding versions used to create the database.
+In practical terms it is impossible to examine a given database schema and decide whether it is compatible with the current schema description and APDB code.
+There needs to be a separate mechanism to identify versions of the schema description and the code and compare those against the corresponding versions used to create the database.
 
 APDB, of course, is not unique in this respect, practically every project using databases has to handle schema migration sooner or later.
 Many such projects operate in a controlled environment where software version upgrades are always tied to database schema upgrades, making compatibility issues rather trivial.
-APDB will likely face more complex issue as it can potentially run with multiple software releases, and database schema upgrades may need to be delayed due to various reasons.
+APDB will likely face more complex issues as it one schema definition can potentially run with multiple software releases, and database schema upgrades may need to be delayed for a variety of reasons.
 In such conditions it is necessary to implement rules for schema compatibility to allow multiple software versions to operate concurrently if schema changes allow it.
 
 
@@ -54,14 +54,14 @@ Version compatibility
 ---------------------
 
 Checking versions compatibility and supporting software compatibility across multiple versions is not a trivial problem.
-One popular approach for expressing whether two versions are compatible consists in using `Semantic Versioning`_ convention for version numbers, usually used for checking API compatibility.
-In this approach version of the software is expressed as ``MAJOR.MINOR.PATCH`` triplet with defined compatibility rules:
+One popular approach for expressing whether two versions are compatible consists in using the `Semantic Versioning`_ convention for version numbers, usually used to check API compatibility.
+In this approach, the version of the software is expressed as a ``MAJOR.MINOR.PATCH`` triplet with defined compatibility rules:
 
 - versions that differ in ``MAJOR`` number are not compatible,
 - versions that differ in ``MINOR`` number are backward-compatible,
 - versions that differ in ``PATCH`` number only are fully compatible.
 
-This compatibility scheme works OK (if implemented correctly) for API-level versioning, but for things like database schemas or wire-level protocols that deal with physical data layouts it is much harder to use.
+This compatibility scheme works is sufficient (if implemented correctly) for API-level versioning, but for things like database schemas or wire-level protocols that deal with physical data layouts it is much harder to use.
 Frequently, software that has to support database schema migration avoids these issues by making any schema changes fully incompatible and using just a single number (or random string) to express schema version.
 
 
@@ -71,17 +71,17 @@ Schema versioning in Rubin DM packages
 I am aware of two packages in DM software that implement database schema versioning.
 
 First is ``QServ`` which has few internal database schemas that need occasional updates.
-Because these are internal database and are never shared across multiple ``QServ`` instances, they do not need to care about version compatibility.
-``QServ`` implements special procedure that migrates databases schemas as necessary on a deployment of a new ``QServ`` version on existing database.
-This procedure use home-built version management system called `smig`_ which uses hand-written SQL or Python migration scripts.
+Because these internal databases are never shared across multiple ``QServ`` instances, they do not need to care about version compatibility.
+``QServ`` implements a special procedure that migrates databases schemas as necessary on a deployment of a new ``QServ`` version on an existing database.
+This procedure uses home-built version management system called `smig`_ which uses hand-written SQL or Python migration scripts.
 As there are no compatibility concerns, `smig`_ uses sequential integer numbers for schema versions.
-There are several schemas (meaning a set of tables as opposed to actual database schema) in ``QServ`` managed by this mechanism, each schema has its own version number and a set of migration classes/scripts.
-The current database schema version is recorded in the database in a format which is schema specific, usually in a separate small table which keeps metadata for corresponding schema.
+There are several schemas (meaning a set of tables as opposed to actual database schema) in ``QServ`` managed by this mechanism; each schema has its own version number and a set of migration classes/scripts.
+The current database schema version is recorded in the database in a format which is schema specific, usually in a separate small table which keeps metadata for the corresponding schema.
 
-Second package is ``daf_butler`` and it has more elaborate versioning scheme.
+The second package is ``daf_butler`` and it has more elaborate versioning scheme.
 There could be multiple Rubin releases accessing the same Butler registry database, so it is essential to support a reasonable compatibility between releases.
-Butler database has complicated schema split into several domains controlled by multiple modules/classes (also called *managers*).
-For each of the manager we define version number which has the format of the semantic version (*MAJOR.MINOR.PATCH*), the version number is defined in the manager code.
+The butler database has a complicated schema split into several domains controlled by multiple modules/classes (also called *managers*).
+For each manager we define a version number which has the format of a semantic version (*MAJOR.MINOR.PATCH*); the version number is defined in the manager code.
 When schema for a manager is created or upgraded, its current version is stored in a special table with a name ``butler_attributes`` which also records other metadata in a key-value format.
 Compared to regular semantic versioning, versions in ``daf_butler`` have somewhat different compatibility rules:
 
@@ -90,7 +90,7 @@ Compared to regular semantic versioning, versions in ``daf_butler`` have somewha
 - versions that differ in ``PATCH`` number only are fully compatible.
 
 Schema upgrade tools for Butler database are implemented on top of `Alembic`_ which is based on ``SQLAlchemy``.
-As Butler schema is more complicated that a typical Alembic-managed database and has non-trivial migration paths, a special Alembic-based tool `daf_butler_migrate`_ was developed to support schema migrations.
+As Butler schema is more complicated than a typical Alembic-managed database and has non-trivial migration paths, a special Alembic-based tool `daf_butler_migrate`_ was developed to support schema migrations.
 `DMTN-191`_ provides additional information about schema migration for Butler database.
 
 
@@ -99,8 +99,8 @@ Schema versioning for APDB
 
 To handle schema versioning for APDB it needs a mechanism to identify and record versions and the tools to check version compatibility and perform schema migrations for existing databases.
 
-As mentioned above, APDB schema is a product of two entities - ``sdm_schemas`` definitions and ``dax_apdb`` code - each of these two can evolve independently.
-To identify database schema version, the versions of both ``sdm_schemas`` and ``dax_apdb`` have to be known.
+As mentioned above, the APDB schema is a product of two entities - ``sdm_schemas`` definitions and ``dax_apdb`` code - each of these two can evolve independently.
+To identify the database schema version, the versions of both ``sdm_schemas`` and ``dax_apdb`` have to be known.
 Presently ``sdm_schemas`` (or rather `felis`_) does not provide a way to define or access version numbers for the schema that it defines, so it will have to be extended to allow specification of the version number, and possibly to include some form of compatibility rules.
 Similarly, ``dax_apdb`` does not provide a way to specify its code version, it has to be extended as well to include that information (independently for SQL and Cassandra implementations).
 
@@ -110,7 +110,7 @@ Version recording
 
 The database needs to record the versions with which it was created (or later upgraded).
 One common approach for this is to define a separate metadata table that can record various additional information about the database itself.
-This table can be a simple key-value storage wit two string columns, indexed by a key value, this approach is used for ``daf_butler`` schema management tools.
+This table can be a simple key-value storage with two string columns, indexed by a key value; this approach is used for ``daf_butler`` schema management tools.
 Both versions used to create database schema will be recorded in the metadata table, one possible example choosing names for keys could be::
 
     key                           | value
@@ -136,7 +136,7 @@ Cassandra-specific tooling can be added to the same command-line tool to provide
 Implementation path
 ===================
 
-If above model looks reasonable then implementation plan for adding schema versions to APDB could look like:
+If the above model looks reasonable then an implementation plan for adding schema versions to APDB could look like:
 
 
 - Extend ``felis`` to support versions in schema definitions as a schema-level ``version`` key.
@@ -146,7 +146,7 @@ If above model looks reasonable then implementation plan for adding schema versi
 - Add a starting version number to ``apdb.yaml``, ``1.0.0`` may be a good start, leaving ``0.x.y`` space for pre-metadata history.
 
 - Add a starting version numbers to ``ApdbSql`` and ``ApdbCassandra`` classes.
-  Extend these classes with option of reading stored version numbers from metadata table, if that exists, and check compatibility.
+  Extend these classes with the option of reading stored version numbers from a metadata table, if that exists, and check compatibility.
   Add an interface of reading/writing key/value pairs to metadata table.
 
 - Implement migration tool, borrowing some ideas from ``daf_butler_migrate``.
