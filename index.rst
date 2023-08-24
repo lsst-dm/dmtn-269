@@ -143,11 +143,23 @@ If the above model looks reasonable then an implementation plan for adding schem
   These versions can be any strings, ``felis`` is not going to interpret them.
   We could use semantic version numbers for APDB schemas or provide more explicit specification of compatibility in ``felis`` (e.g. ``compatible_versions`` key).
 
-- Add a starting version number to ``apdb.yaml``, ``1.0.0`` may be a good start, leaving ``0.x.y`` space for pre-metadata history.
+- Add a starting version number to ``apdb.yaml``, ``0.0.1`` may be a good start, leaving ``0.0.0`` as a placeholder for pre-metadata version.
 
 - Add a starting version numbers to ``ApdbSql`` and ``ApdbCassandra`` classes.
   Extend these classes with the option of reading stored version numbers from a metadata table, if that exists, and check compatibility.
+  APDB code could assume that missing metadata table in the schema means version ``0.0.0`` for both schema and code version.
   Add an interface of reading/writing key/value pairs to metadata table.
+
+- Define the format of the version numbers and rules of their compatibility.
+  A couple of possible option, as already mentioned above, could be:
+
+  - Use semantic versioning, difference in major version means incompatible versions.
+    Difference in patch version mans completely compatible version.
+    Difference in minor version could mean backward compatibility (maybe for reading only).
+    Incompatibility should result in exception, compatible versions should not produce any diagnostics.
+
+  - Version could be a single consecutive number (1, 2, 3, and so on) and special rules should be defined in the schema and code to express compatibility.
+    For example, ``apdb.yaml`` could specify its current version as ``7`` and also specify that it is fully compatible wit version ``6`` and read-compatible with versions ``5`` and ``4``.
 
 - Implement migration tool, borrowing some ideas from ``daf_butler_migrate``.
   Implement first migration as adding metadata table and populating it with the current version numbers.
